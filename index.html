@@ -113,6 +113,24 @@
   @keyframes bannerpop{0%{opacity:0; transform:scale(.7);}25%{opacity:1; transform:scale(1.05);}75%{opacity:1; transform:scale(1);}100%{opacity:0; transform:scale(1.04);}}
   .shake{animation:scrShake .3s;}
   @keyframes scrShake{0%,100%{transform:translate(0,0);}20%{transform:translate(-6px,2px);}40%{transform:translate(6px,-2px);}60%{transform:translate(-4px,1px);}80%{transform:translate(4px,-1px);}}
+
+  /* ---------- Settings screen ---------- */
+  #screen-settings{padding:22px; gap:14px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  #screen-settings h2{margin:0 0 4px; font-size:24px;}
+  .set-row{display:flex; align-items:center; justify-content:space-between; gap:14px; background:var(--panel); border:1px solid #2f2f46; border-radius:14px; padding:14px 16px;}
+  .set-row.col{flex-direction:column; align-items:stretch; gap:12px;}
+  .set-row > span{font-size:16px; font-weight:600;}
+  .set-row .seg{display:flex; gap:8px;}
+  .set-row .seg button{flex:1; padding:10px 0; border-radius:10px; border:1.5px solid #3a3a52; background:transparent; color:var(--text); font-size:14px; cursor:pointer; transition:all .15s ease;}
+  .set-row .seg button.active{background:var(--accent); color:#0c0c14; border-color:var(--accent); font-weight:800;}
+  .switch{position:relative; width:54px; height:30px; border-radius:16px; border:none; background:#3a3a52; cursor:pointer; transition:background .2s ease; flex:none;}
+  .switch::after{content:''; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .2s ease; box-shadow:0 1px 3px rgba(0,0,0,.4);}
+  .switch.on{background:var(--accent);}
+  .switch.on::after{left:27px;}
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:4px; background:#3a3a52; outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:var(--accent); cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.4); }
+  input[type=range]::-moz-range-thumb{ width:22px; height:22px; border:none; border-radius:50%; background:var(--accent); cursor:pointer; }
+  .set-vol b{color:var(--accent); font-weight:800;}
 </style>
 </head>
 <body>
@@ -129,7 +147,7 @@
       <button class="btn ghost" data-act="daily">每日挑战</button>
       <button class="btn ghost" data-act="records">纪录墙</button>
     </div>
-    <button class="btn ghost small" data-act="settings" style="margin-top:8px;">设置（音效 / 主题）</button>
+    <button class="btn ghost small" data-act="settings" style="margin-top:8px;">设置</button>
   </section>
 
   <section id="screen-levels" class="screen">
@@ -174,6 +192,29 @@
       <button class="btn ghost small" data-act="back">返回</button>
     </div>
     <div class="row"><button class="btn" id="nextBtn" data-act="next">下一关</button></div>
+  </section>
+
+  <section id="screen-settings" class="screen">
+    <div class="head"><button class="btn ghost small" data-act="back">返回</button><h2>设置</h2><span style="width:54px"></span></div>
+    <div class="set-row"><span>音效</span><button class="switch" id="swSfx" data-act="swSfx"></button></div>
+    <div class="set-row"><span>背景音乐</span><button class="switch" id="swBgm" data-act="swBgm"></button></div>
+    <div class="set-row col"><span>音乐风格</span>
+      <div class="seg" id="bgmStyle">
+        <button data-style="chill">舒缓</button>
+        <button data-style="arcade">活泼</button>
+        <button data-style="pulse">律动</button>
+      </div>
+    </div>
+    <div class="set-row col"><span class="set-vol">音乐音量 <b id="bgmVolVal">50%</b></span>
+      <input type="range" id="bgmVol" min="0" max="100" value="50">
+    </div>
+    <div class="set-row col"><span>主题</span>
+      <div class="seg" id="themeSeg">
+        <button data-theme="default">默认</button>
+        <button data-theme="neon">霓虹</button>
+        <button data-theme="sunset">日落</button>
+      </div>
+    </div>
   </section>
 
 </div>
@@ -232,7 +273,8 @@
   function ls(k, v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); return v; }catch(e){ return v===undefined?null:v; } }
   var PB = ls('stroop_pb', {}) || {};
   var UNLOCKED = ls('stroop_unlocked', 1) || 1;
-  var SOUND = ls('stroop_sound', true);
+  var SFX = ls('stroop_sfx', true);                 // 音效开关（独立于背景音乐）
+  var BGM = { on: ls('stroop_bgm', false), vol: ls('stroop_bgmvol', 0.5), style: ls('stroop_bgmstyle', 'chill') };  // 背景音乐：开关 / 音量 / 风格
   var THEME = ls('stroop_theme', 'default');
   var STREAK = ls('stroop_streak', {date:0, n:0});
   var END = ls('stroop_endless', {level:0, time:0, score:0, combo:0});
@@ -245,7 +287,9 @@
   var SAMPLE_MAP = { correct:'sfx/correct.wav', wrong:'sfx/wrong.wav', level:'sfx/level.wav', pb:'sfx/pb.wav', tick:'sfx/tick.wav' };
   var actx=null, noiseBuf=null, master=null, comp=null, reverb=null, revGain=null;
   var droneOsc=[], droneGain=null, droneLFO=null;
-  var SFX = { correct:null, wrong:null, level:null, pb:null, tick:null };
+  var SFX_BUF = { correct:null, wrong:null, level:null, pb:null, tick:null };
+  var BGM_FILES = { chill:'bgm/chill.wav', arcade:'bgm/arcade.wav', pulse:'bgm/pulse.wav' };
+  var bgmBuf={chill:null, arcade:null, pulse:null}, bgmGain=null, bgmSrc=null, bgmLoaded=false, pendingBgm=null;
   var samplesLoaded=false;
   function initAudio(){
     if(actx){ if(actx.state==='suspended') actx.resume(); return; }
@@ -263,10 +307,10 @@
   function makeImpulse(dur,decay){ var rate=actx.sampleRate, len=Math.floor(rate*dur), buf=actx.createBuffer(2,len,rate); for(var ch=0;ch<2;ch++){ var dd=buf.getChannelData(ch); for(var i=0;i<len;i++) dd[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); } return buf; }
   function makeDist(amount){ var n=1024, curve=new Float32Array(n), k=amount*100; for(var i=0;i<n;i++){ var x=i/n*2-1; curve[i]=(3+k)*x*20*Math.PI/180/(Math.PI+k*Math.abs(x)); } return curve; }
   // real .wav samples in sfx/ are the default; falls back to synth if fetch/decode fails
-  function preloadSamples(map){ if(!actx) return; Object.keys(map).forEach(function(name){ fetch(map[name]).then(function(r){return r.arrayBuffer();}).then(function(ab){return actx.decodeAudioData(ab);}).then(function(buf){ SFX[name]=buf; }).catch(function(e){ console.warn('sample load failed:',name,e); }); }); }
-  function playSample(name, rate){ if(actx && SFX[name]){ var s=actx.createBufferSource(); s.buffer=SFX[name]; if(rate && rate!==1) s.playbackRate.value=rate; s.connect(master); s.start(); return true; } return false; }
+  function preloadSamples(map){ if(!actx) return; Object.keys(map).forEach(function(name){ fetch(map[name]).then(function(r){return r.arrayBuffer();}).then(function(ab){return actx.decodeAudioData(ab);}).then(function(buf){ SFX_BUF[name]=buf; }).catch(function(e){ console.warn('sample load failed:',name,e); }); }); }
+  function playSample(name, rate){ if(actx && SFX_BUF[name]){ var s=actx.createBufferSource(); s.buffer=SFX_BUF[name]; if(rate && rate!==1) s.playbackRate.value=rate; s.connect(master); s.start(); return true; } return false; }
   function tone(o){
-    if(!SOUND||!actx) return;
+    if(!SFX||!actx) return;
     var t=actx.currentTime+(o.when||0), dur=o.dur||0.2;
     var osc=actx.createOscillator(); osc.type=o.type||'sine'; osc.frequency.setValueAtTime(o.freq,t);
     if(o.glideTo) osc.frequency.exponentialRampToValueAtTime(o.glideTo,t+dur);
@@ -277,7 +321,7 @@
     osc.start(t); osc.stop(t+dur+0.05);
   }
   function noise(o){
-    if(!SOUND||!actx) return;
+    if(!SFX||!actx) return;
     var t=actx.currentTime+(o.when||0), dur=o.dur||0.1;
     var s=actx.createBufferSource(); s.buffer=noiseBuf;
     var f=actx.createBiquadFilter(); f.type='highpass'; f.frequency.value=o.hp||2000;
@@ -319,6 +363,27 @@
   }
   function setDrone(p){ if(droneGain) droneGain.gain.setTargetAtTime(0.0001+p*0.09, actx.currentTime, 0.3); }
   function stopDrone(){ droneOsc.forEach(function(o){ try{o.stop();}catch(e){} }); droneOsc=[]; if(droneLFO){ try{droneLFO.stop();}catch(e){} droneLFO=null; } droneGain=null; }
+
+  // ---------- Background music (seamless looping .wav, 3 selectable styles) ----------
+  function initBgmGraph(){ if(bgmGain||!actx) return; bgmGain=actx.createGain(); bgmGain.gain.value=BGM.vol; bgmGain.connect(master); }
+  function loadBgm(){
+    if(bgmLoaded||!actx) return; bgmLoaded=true;
+    Object.keys(BGM_FILES).forEach(function(k){
+      fetch(BGM_FILES[k]).then(function(r){return r.arrayBuffer();}).then(function(ab){return actx.decodeAudioData(ab);}).then(function(buf){
+        bgmBuf[k]=buf; if(k===pendingBgm){ pendingBgm=null; startBgm(); }
+      }).catch(function(e){ console.warn('bgm load failed:',k,e); });
+    });
+  }
+  function startBgm(){
+    if(!actx||!BGM.on) return;
+    initBgmGraph(); loadBgm();
+    if(bgmSrc){ try{bgmSrc.stop();}catch(e){} bgmSrc=null; }
+    var buf=bgmBuf[BGM.style];
+    if(buf){ bgmSrc=actx.createBufferSource(); bgmSrc.buffer=buf; bgmSrc.loop=true; bgmSrc.connect(bgmGain); bgmSrc.start(); }
+    else pendingBgm=BGM.style;   // not decoded yet; loadBgm will start it
+  }
+  function stopBgm(){ if(bgmSrc){ try{bgmSrc.stop();}catch(e){} bgmSrc=null; } }
+  function setBgmVol(v){ BGM.vol=v; ls('stroop_bgmvol',v); if(bgmGain&&actx) bgmGain.gain.setTargetAtTime(v, actx.currentTime, 0.05); }
 
   // ---------- Particles ----------
   var cvs=document.getElementById('fx'), pctx=cvs.getContext('2d'), parts=[];
@@ -646,13 +711,24 @@
     else if(act==='records'){ buildRecords(); show('screen-records'); }
     else if(act==='back'){ show('screen-start'); }
     else if(act==='next'){ initAudio(); startPractice(S.level+1); }
-    else if(act==='settings'){ toggleSettings(); }
+    else if(act==='settings'){ show('screen-settings'); updateSettingsUI(); }
+    else if(act==='swSfx'){ SFX=!SFX; ls('stroop_sfx',SFX); updateSettingsUI(); }
+    else if(act==='swBgm'){ BGM.on=!BGM.on; ls('stroop_bgm',BGM.on); initAudio(); if(BGM.on) startBgm(); else stopBgm(); updateSettingsUI(); }
     else if(act==='copy'){ var txt=$('shareText').textContent; if(navigator.clipboard) navigator.clipboard.writeText(txt); alert('战绩已复制'); }
   });
-  function toggleSettings(){
-    SOUND=!SOUND; ls('stroop_sound',SOUND);
-    var themes=['default','neon','sunset']; THEME=themes[(themes.indexOf(THEME)+1)%themes.length]; ls('stroop_theme',THEME); applyTheme();
-    alert('音效：'+(SOUND?'开':'关')+'　主题：'+THEME);
+  function updateSettingsUI(){
+    $('swSfx').classList.toggle('on', !!SFX);
+    $('swBgm').classList.toggle('on', !!BGM.on);
+    $('bgmVol').value=Math.round(BGM.vol*100); $('bgmVolVal').textContent=Math.round(BGM.vol*100)+'%';
+    Array.prototype.forEach.call($('bgmStyle').children, function(b){ b.classList.toggle('active', b.getAttribute('data-style')===BGM.style); });
+    Array.prototype.forEach.call($('themeSeg').children, function(b){ b.classList.toggle('active', b.getAttribute('data-theme')===THEME); });
+  }
+  function bindSettings(){
+    $('bgmStyle').addEventListener('click', function(e){ var b=e.target.closest('button'); if(!b) return; BGM.style=b.getAttribute('data-style'); ls('stroop_bgmstyle',BGM.style); if(BGM.on) startBgm(); updateSettingsUI(); });
+    $('themeSeg').addEventListener('click', function(e){ var b=e.target.closest('button'); if(!b) return; THEME=b.getAttribute('data-theme'); ls('stroop_theme',THEME); applyTheme(); updateSettingsUI(); });
+    $('bgmVol').addEventListener('input', function(e){ setBgmVol(parseInt(e.target.value,10)/100); $('bgmVolVal').textContent=e.target.value+'%'; });
+    // resume audio on first gesture so BGM can auto-start if enabled
+    document.addEventListener('pointerdown', function(){ initAudio(); if(BGM.on) startBgm(); }, {once:true});
   }
   function applyTheme(){ var m={default:'91,209,255', neon:'255,90,200', sunset:'255,160,80'}; document.documentElement.style.setProperty('--accent','rgb('+m[THEME]+')'); }
 
@@ -664,6 +740,7 @@
   window.addEventListener('resize', function(){ if($('screen-game').classList.contains('active')) sizeCanvas(); });
 
   applyTheme();
+  bindSettings();
 })();
 </script>
 </body>
