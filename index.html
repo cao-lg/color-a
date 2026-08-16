@@ -19,7 +19,7 @@
     overflow:hidden; user-select:none;
   }
   #app{
-    position:relative; width:min(480px,100vw); height:min(860px,100vh);
+    position:relative; width:min(480px,100vw); height:min(860px,100vh); height:min(860px,100dvh);
     background:var(--bg); overflow:hidden; box-shadow:0 0 60px rgba(0,0,0,.5);
   }
   .screen{position:absolute; inset:0; display:none; flex-direction:column; padding:22px;}
@@ -83,7 +83,7 @@
   .banner{position:absolute; top:42%; font-size:34px; font-weight:900; color:var(--good); opacity:0; pointer-events:none; text-shadow:0 0 22px rgba(57,217,138,.7);}
   .banner.show{animation:bannerpop .8s ease;}
 
-  #screen-result{padding:26px; gap:16px;}
+  #screen-result{padding:26px; gap:16px; overflow-y:auto; -webkit-overflow-scrolling:touch;}
   #screen-result h2{margin:0; font-size:26px;}
   .newrec{color:#ffd166; font-weight:800; font-size:15px; letter-spacing:1px;}
   .stats{background:var(--panel); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px;}
@@ -557,16 +557,16 @@
       S.daily?'back':'next');
   }
   function renderResult(title, isNew, rows, share, nextAct){
+    show('screen-result');   // show first, so any later error can't strand the player on the game screen
     $('resTitle').textContent=title;
     $('newRec').style.display=isNew?'block':'none';
-    var box=$('resStats'); box.innerHTML='';
-    rows.forEach(function(r){ var d=document.createElement('div'); d.className='stat'; d.innerHTML='<span>'+r[0]+'</span><b>'+r[1]+'</b>'; box.appendChild(d); });
+    var box=$('resStats'); if(box) box.innerHTML='';
+    if(box) rows.forEach(function(r){ var d=document.createElement('div'); d.className='stat'; d.innerHTML='<span>'+r[0]+'</span><b>'+r[1]+'</b>'; box.appendChild(d); });
     $('shareText').textContent=share;
     var nb=$('nextBtn');
     if(nextAct==='replay'){ nb.style.display='block'; nb.textContent='再来一局'; nb.setAttribute('data-act','endless'); }
     else if(nextAct==='next'){ nb.style.display='block'; nb.textContent='下一关'; nb.setAttribute('data-act','next'); }
     else { nb.style.display='none'; }
-    show('screen-result');
   }
 
   function bumpStreak(){
