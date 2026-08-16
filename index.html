@@ -217,7 +217,7 @@
   var TOTAL_PRACTICE = 20;
 
   // ---------- Storage ----------
-  function ls(k, v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return v===undefined?null:v; } }
+  function ls(k, v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); return v; }catch(e){ return v===undefined?null:v; } }
   var PB = ls('stroop_pb', {}) || {};
   var UNLOCKED = ls('stroop_unlocked', 1) || 1;
   var SOUND = ls('stroop_sound', true);
