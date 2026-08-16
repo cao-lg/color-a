@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>墨色挑战 · Stroop</title>
+<style>
+  :root{
+    --bg:#15151f; --bg2:#1d1d2b; --panel:#23233a; --text:#eef0f6;
+    --muted:#9aa0b5; --accent:#5bd1ff; --good:#39d98a; --bad:#ff5d6c;
+    --combo-glow:0,0,0;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    background:radial-gradient(120% 120% at 50% 0%, var(--bg2), var(--bg));
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    display:flex; align-items:center; justify-content:center; min-height:100%;
+    overflow:hidden; user-select:none;
+  }
+  #app{
+    position:relative; width:min(480px,100vw); height:min(860px,100vh);
+    background:var(--bg); overflow:hidden; box-shadow:0 0 60px rgba(0,0,0,.5);
+  }
+  .screen{position:absolute; inset:0; display:none; flex-direction:column; padding:22px;}
+  .screen.active{display:flex;}
+
+  #screen-start{align-items:center; justify-content:center; text-align:center; gap:14px;}
+  .logo{font-size:46px; font-weight:800; letter-spacing:4px; margin:0;}
+  .logo small{display:block; font-size:14px; font-weight:500; color:var(--muted); letter-spacing:6px; margin-top:6px;}
+  .tagline{color:var(--muted); font-size:14px; line-height:1.7; max-width:300px;}
+  .menu{display:flex; flex-direction:column; gap:12px; width:240px; margin-top:10px;}
+  .btn{border:none; border-radius:14px; padding:14px 18px; font-size:17px; font-weight:700; color:#0d0d14; background:var(--accent); cursor:pointer; transition:transform .08s ease, filter .15s;}
+  .btn:active{transform:scale(.96);}
+  .btn.ghost{background:transparent; color:var(--text); border:1.5px solid #3a3a52;}
+  .btn.small{padding:10px 14px; font-size:14px;}
+
+  .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;}
+  .head h2{margin:0; font-size:22px;}
+  .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; overflow-y:auto; padding-bottom:20px;}
+  .lvl{aspect-ratio:1; border-radius:14px; background:var(--panel); border:1.5px solid #31314a; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; gap:4px;}
+  .lvl .num{font-size:22px; font-weight:800;}
+  .lvl .pb{font-size:11px; color:var(--muted);}
+  .lvl.locked{opacity:.4; cursor:not-allowed;}
+  .lvl:active{transform:scale(.95);}
+
+  #screen-game{padding:0;}
+  .hud{display:flex; align-items:flex-start; justify-content:space-between; padding:16px 18px 8px; font-size:14px; color:var(--muted);}
+  .hud .lv{display:flex; flex-direction:column; gap:5px;}
+  .hud .score{font-size:20px; font-weight:800; color:var(--text);}
+  .hud .combo{font-weight:800; color:var(--accent); min-width:64px; text-align:right;}
+  .lives{display:none; gap:6px; align-items:center;}
+  .life-label{font-size:12px; color:var(--muted); margin-right:2px; font-weight:700;}
+  .life{width:15px; height:15px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #ff97a2, var(--bad)); box-shadow:0 0 8px rgba(255,93,108,.55); transition:transform .25s ease, opacity .3s ease, background .3s;}
+  .life.lost{background:#33334a; box-shadow:none; transform:scale(.55); opacity:.45;}
+  .life.hit{animation:lifepunch .4s ease;}
+  @keyframes lifepunch{0%{transform:scale(1);}25%{transform:scale(1.6);}60%{transform:scale(.8);}100%{transform:scale(1);}}
+  .qring{position:absolute; width:min(46vw,220px); height:min(46vw,220px); border-radius:50%; transform:translate(-50%,-50%); pointer-events:none; display:none; z-index:1;
+    background:conic-gradient(var(--ring-c,var(--good)) calc(var(--p,0)*1%), rgba(255,255,255,.10) 0);
+    -webkit-mask:radial-gradient(transparent 60%, #000 62%); mask:radial-gradient(transparent 60%, #000 62%);}
+  .timerbar{height:8px; margin:0 18px; border-radius:6px; background:#2a2a3e; overflow:hidden;}
+  .timerbar > i{display:block; height:100%; width:100%; background:linear-gradient(90deg,var(--accent),var(--good)); transition:width .1s linear;}
+  .timerbar.warn > i{background:linear-gradient(90deg,#ff8a5d,var(--bad));}
+  .stage{position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;}
+  #fx{position:absolute; inset:0; pointer-events:none;}
+  .vignette{position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity .2s; background:radial-gradient(circle at 50% 45%, transparent 32%, rgba(255,40,60,.6) 100%);}
+  #app.danger{animation:edgepulse .5s ease-in-out infinite;}
+  @keyframes edgepulse{0%,100%{box-shadow:inset 0 0 0 rgba(255,60,80,0), 0 0 60px rgba(0,0,0,.5);}50%{box-shadow:inset 0 0 46px rgba(255,60,80,.55), 0 0 60px rgba(0,0,0,.5);}}
+  .mode-tag{font-size:13px; font-weight:700; padding:5px 12px; border-radius:20px; letter-spacing:1px; background:#2c2c44; color:var(--muted);}
+  .mode-tag.reverse{background:#3a2c44; color:#e0a8ff;}
+  #word{font-size:clamp(54px,18vw,104px); font-weight:900; line-height:1; text-shadow:0 0 30px rgba(var(--combo-glow),.55); transition:transform .12s ease;}
+  #word.pop{animation:pop .18s ease;}
+  #word.good{animation:goodpulse .25s ease;}
+  #word.bad{animation:badshake .3s ease;}
+  .btns{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:0 18px 26px; width:100%;}
+  .color-btn{position:relative; aspect-ratio:1.5; border:none; border-radius:14px; cursor:pointer; box-shadow:inset 0 -4px 0 rgba(0,0,0,.18); transition:transform .07s ease;}
+  .color-btn:active{transform:scale(.93);}
+  .color-btn .key{position:absolute; top:5px; left:7px; font-size:11px; font-weight:700; color:rgba(255,255,255,.7);}
+  .flash{position:absolute; inset:0; pointer-events:none; opacity:0; border-radius:0;}
+  .flash.bad{background:radial-gradient(circle, rgba(255,93,108,.45), transparent 70%); animation:flashbad .35s ease;}
+  .combo-pop{position:absolute; top:30%; font-size:30px; font-weight:900; color:var(--accent); opacity:0; pointer-events:none; text-shadow:0 0 18px rgba(91,209,255,.6);}
+  .combo-pop.show{animation:combopop .5s ease;}
+  .banner{position:absolute; top:42%; font-size:34px; font-weight:900; color:var(--good); opacity:0; pointer-events:none; text-shadow:0 0 22px rgba(57,217,138,.7);}
+  .banner.show{animation:bannerpop .8s ease;}
+
+  #screen-result{padding:26px; gap:16px;}
+  #screen-result h2{margin:0; font-size:26px;}
+  .newrec{color:#ffd166; font-weight:800; font-size:15px; letter-spacing:1px;}
+  .stats{background:var(--panel); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px;}
+  .stat{display:flex; justify-content:space-between; font-size:15px;}
+  .stat b{font-size:18px;}
+  .stat span{color:var(--muted);}
+  .share-box{background:#1b1b29; border:1px solid #2f2f46; border-radius:12px; padding:12px; font-size:13px; color:var(--muted); line-height:1.6;}
+  .row{display:flex; gap:12px;}
+  .row .btn{flex:1;}
+
+  #screen-records .stats{gap:8px;}
+
+  @keyframes pop{0%{transform:scale(.6);}60%{transform:scale(1.08);}100%{transform:scale(1);}}
+  @keyframes goodpulse{0%{transform:scale(1);}50%{transform:scale(1.12);}100%{transform:scale(1);}}
+  @keyframes badshake{0%,100%{transform:translateX(0);}25%{transform:translateX(-8px);}75%{transform:translateX(8px);}}
+  @keyframes flashbad{0%{opacity:1;}100%{opacity:0;}}
+  @keyframes combopop{0%{opacity:0; transform:translateY(8px) scale(.8);}30%{opacity:1; transform:translateY(-6px) scale(1.1);}100%{opacity:0; transform:translateY(-26px) scale(1);}}
+  @keyframes bannerpop{0%{opacity:0; transform:scale(.7);}25%{opacity:1; transform:scale(1.05);}75%{opacity:1; transform:scale(1);}100%{opacity:0; transform:scale(1.04);}}
+  .shake{animation:scrShake .3s;}
+  @keyframes scrShake{0%,100%{transform:translate(0,0);}20%{transform:translate(-6px,2px);}40%{transform:translate(6px,-2px);}60%{transform:translate(-4px,1px);}80%{transform:translate(4px,-1px);}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <section id="screen-start" class="screen active">
+    <h1 class="logo">墨色挑战<small>STROOP</small></h1>
+    <p class="tagline">字义会骗你，墨色不会。<br>无限闯关，看你能压制本能到第几关。</p>
+    <div class="menu">
+      <button class="btn" data-act="endless">无限挑战</button>
+      <button class="btn ghost" data-act="timed30">限时挑战 · 30秒</button>
+      <button class="btn ghost" data-act="timed60">限时挑战 · 60秒</button>
+      <button class="btn ghost" data-act="practice">练习模式</button>
+      <button class="btn ghost" data-act="daily">每日挑战</button>
+      <button class="btn ghost" data-act="records">纪录墙</button>
+    </div>
+    <button class="btn ghost small" data-act="settings" style="margin-top:8px;">设置（音效 / 主题）</button>
+  </section>
+
+  <section id="screen-levels" class="screen">
+    <div class="head"><button class="btn ghost small" data-act="back">返回</button><h2>练习模式</h2><span style="width:54px"></span></div>
+    <div id="lvlGrid" class="grid"></div>
+  </section>
+
+  <section id="screen-records" class="screen">
+    <div class="head"><button class="btn ghost small" data-act="back">返回</button><h2>纪录墙</h2><span style="width:54px"></span></div>
+    <div id="recList" class="stats"></div>
+  </section>
+
+  <section id="screen-game" class="screen">
+    <div class="hud">
+      <div class="lv"><div>第 <span id="hudLevel">1</span> 关</div><div id="lives" class="lives"></div></div>
+      <div class="score" id="hudScore">0</div>
+      <div class="combo" id="hudCombo">连击 0</div>
+    </div>
+    <div class="timerbar" id="timerbar"><i id="timerFill"></i></div>
+    <div class="stage" id="stage">
+      <canvas id="fx"></canvas>
+      <div class="vignette" id="vignette"></div>
+      <div class="qring" id="qring"></div>
+      <div class="mode-tag" id="modeTag">按墨色</div>
+      <div id="word">红</div>
+      <div class="combo-pop" id="comboPop"></div>
+      <div class="banner" id="banner"></div>
+      <div class="flash" id="flash"></div>
+    </div>
+    <div class="btns" id="btnWrap"></div>
+  </section>
+
+  <section id="screen-result" class="screen">
+    <h2 id="resTitle">结算</h2>
+    <div class="newrec" id="newRec" style="display:none;">新纪录！</div>
+    <div class="stats" id="resStats"></div>
+    <div class="share-box" id="shareText"></div>
+    <div class="row">
+      <button class="btn ghost small" data-act="copy">复制战绩</button>
+      <button class="btn ghost small" data-act="back">返回</button>
+    </div>
+    <div class="row"><button class="btn" id="nextBtn" data-act="next">下一关</button></div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- Config ([PLACEHOLDER] = unvalidated, tune via playtest) ----------
+  var COLORS = {
+    basic: [ {n:'红',h:'#e63946'}, {n:'蓝',h:'#2f8fd6'}, {n:'绿',h:'#2fae4e'}, {n:'黄',h:'#f4c430'} ],
+    inter: [ {n:'橙',h:'#f3722c'}, {n:'紫',h:'#9b59d0'}, {n:'粉',h:'#ff7eb6'}, {n:'棕',h:'#9c6b3f'} ],
+    adv:   [ {n:'黑',h:'#3a3a44'}, {n:'灰',h:'#9aa0a6'}, {n:'青',h:'#16c0c0'}, {n:'品红',h:'#d64ed6'} ]
+  };
+  function paletteFor(count){
+    if(count<=4) return COLORS.basic.slice();
+    if(count<=8) return COLORS.basic.concat(COLORS.inter);
+    return COLORS.basic.concat(COLORS.inter, COLORS.adv);
+  }
+  // Practice / daily: fixed, forgiving (window=Infinity => no auto-miss)
+  function levelConfig(n){
+    var count=4, modes=['classic'], rotate=false;
+    if(n<=3){ count=4; }
+    else if(n<=6){ count=4; }
+    else if(n<=10){ count=8; }
+    else if(n<=15){ count=8; modes=['classic','reverse']; }
+    else { count=12; modes=['classic','reverse']; rotate=true; }
+    return {count:count, modes:modes, rotate:rotate, window:Infinity, flash:false};
+  }
+  // Endless: difficulty is a function of level N. First 5 levels = GRACE (generous window, timeout/wrong
+  // only breaks combo, never costs a life) so players learn the loop before the life-loss pressure bites.
+  function endlessConfig(n){
+    var count = n<=3?4 : n<=8?8 : 12;
+    var modes = n<6 ? ['classic'] : ['classic','reverse'];
+    var rotate = n>=12;
+    var grace = n<=5;                                       // learning phase: no life loss
+    var windowSec = grace ? 3.6 : Math.max(0.75, 2.6 - (n-6)*0.05); // [PLACEHOLDER] per-question window
+    var flash = n>=15;                                      // word hides, answer from memory
+    return {count:count, modes:modes, rotate:rotate, window:windowSec, flash:flash, grace:grace};
+  }
+  // Timed score-attack: answer as many as possible within the limit. No lives, no level progression,
+  // no per-question window (global clock is the only pressure). [PLACEHOLDER] colors/window tune pending playtest.
+  function timedConfig(){ return {count:8, modes:['classic','reverse'], rotate:true, window:Infinity, flash:false, grace:true}; }
+  var LEVEL_TIME = 90;     // [PLACEHOLDER] seconds per level
+  var Q_SPEED_REF = 800;   // [PLACEHOLDER] reaction-time ref (ms) for speed factor
+  var START_LIVES = 3;
+  var TOTAL_PRACTICE = 20;
+
+  // ---------- Storage ----------
+  function ls(k, v){ try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify(v)); }catch(e){ return v===undefined?null:v; } }
+  var PB = ls('stroop_pb', {}) || {};
+  var UNLOCKED = ls('stroop_unlocked', 1) || 1;
+  var SOUND = ls('stroop_sound', true);
+  var THEME = ls('stroop_theme', 'default');
+  var STREAK = ls('stroop_streak', {date:0, n:0});
+  var END = ls('stroop_endless', {level:0, time:0, score:0, combo:0});
+  var TIMED = ls('stroop_timed', {30:{score:0,count:0}, 60:{score:0,count:0}});
+
+  // ---------- Audio engine (high-impact synth + optional real samples) ----------
+  // Default = layered Web Audio synth (zero assets, always works). To use real CC0 samples,
+  // drop files into an sfx/ folder and call preloadSamples({correct:'sfx/correct.wav',...}) after first user gesture.
+  var actx=null, noiseBuf=null, master=null, comp=null, reverb=null, revGain=null;
+  var droneOsc=[], droneGain=null, droneLFO=null;
+  var SFX = { correct:null, wrong:null, level:null, pb:null, tick:null };
+  function initAudio(){
+    if(actx){ if(actx.state==='suspended') actx.resume(); return; }
+    try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+    master=actx.createGain(); master.gain.value=0.9;
+    comp=actx.createDynamicsCompressor(); comp.threshold.value=-10; comp.ratio.value=4; comp.attack.value=0.003; comp.release.value=0.25;
+    master.connect(comp); comp.connect(actx.destination);
+    reverb=actx.createConvolver(); reverb.buffer=makeImpulse(0.4,2.6);
+    revGain=actx.createGain(); revGain.gain.value=0.22; reverb.connect(revGain); revGain.connect(master);
+    var len=Math.floor(actx.sampleRate*0.5);
+    noiseBuf=actx.createBuffer(1,len,actx.sampleRate);
+    var d=noiseBuf.getChannelData(0); for(var i=0;i<len;i++) d[i]=Math.random()*2-1;
+  }
+  function makeImpulse(dur,decay){ var rate=actx.sampleRate, len=Math.floor(rate*dur), buf=actx.createBuffer(2,len,rate); for(var ch=0;ch<2;ch++){ var dd=buf.getChannelData(ch); for(var i=0;i<len;i++) dd[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay); } return buf; }
+  function makeDist(amount){ var n=1024, curve=new Float32Array(n), k=amount*100; for(var i=0;i<n;i++){ var x=i/n*2-1; curve[i]=(3+k)*x*20*Math.PI/180/(Math.PI+k*Math.abs(x)); } return curve; }
+  // optional real-sample override (CC0 files in sfx/); falls back to synth if fetch/decode fails
+  function preloadSamples(map){ if(!actx) return; Object.keys(map).forEach(function(name){ fetch(map[name]).then(function(r){return r.arrayBuffer();}).then(function(ab){return actx.decodeAudioData(ab);}).then(function(buf){ SFX[name]=buf; }).catch(function(){}); }); }
+  function playSample(name){ if(actx && SFX[name]){ var s=actx.createBufferSource(); s.buffer=SFX[name]; s.connect(master); s.start(); return true; } return false; }
+  function tone(o){
+    if(!SOUND||!actx) return;
+    var t=actx.currentTime+(o.when||0), dur=o.dur||0.2;
+    var osc=actx.createOscillator(); osc.type=o.type||'sine'; osc.frequency.setValueAtTime(o.freq,t);
+    if(o.glideTo) osc.frequency.exponentialRampToValueAtTime(o.glideTo,t+dur);
+    var g=actx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(o.peak||0.2,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    var node=osc;
+    if(o.dist){ var ws=actx.createWaveShaper(); ws.curve=makeDist(o.dist); ws.oversample='2x'; node.connect(ws); node=ws; }
+    node.connect(g); g.connect(master); if(o.send) g.connect(reverb);
+    osc.start(t); osc.stop(t+dur+0.05);
+  }
+  function noise(o){
+    if(!SOUND||!actx) return;
+    var t=actx.currentTime+(o.when||0), dur=o.dur||0.1;
+    var s=actx.createBufferSource(); s.buffer=noiseBuf;
+    var f=actx.createBiquadFilter(); f.type='highpass'; f.frequency.value=o.hp||2000;
+    var g=actx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(o.peak||0.1,t+0.004); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    var node=s;
+    if(o.dist){ var ws=actx.createWaveShaper(); ws.curve=makeDist(o.dist); ws.oversample='2x'; node.connect(ws); node=ws; }
+    node.connect(f); f.connect(g); g.connect(master); if(o.send) g.connect(reverb);
+    s.start(t); s.stop(t+dur+0.05);
+  }
+  // Correct: sub transient punch + distorted bright body (rises with combo) + octave shimmer + combo-scaled sparkle + milestone swell
+  function playCorrect(combo){
+    if(playSample('correct')) return;
+    var f=523.25*Math.pow(2, Math.min(combo,18)/12);
+    tone({freq:60, dur:0.09, type:'sine', peak:0.34});
+    tone({freq:f, dur:0.16, type:'triangle', peak:0.26, dist:0.35, send:0.12});
+    tone({freq:f*2, dur:0.11, type:'sine', peak:0.10, send:0.10});
+    noise({dur:0.05, peak:0.05+Math.min(combo,14)*0.004, hp:5200, send:0.05});
+    if(combo===5||combo===10||combo===20) tone({freq:f*1.5, dur:0.24, type:'sine', peak:0.14, send:0.30});
+  }
+  function playWrong(){
+    if(playSample('wrong')) return;
+    tone({freq:130, dur:0.32, type:'sawtooth', peak:0.30, glideTo:42, dist:0.6});
+    tone({freq:88, dur:0.30, type:'square', peak:0.18, glideTo:38, dist:0.5});
+    noise({dur:0.16, peak:0.16, hp:240, dist:0.3, send:0.08});
+  }
+  function playLevel(){ if(playSample('level')) return; [523.25,659.25,783.99,1046.5].forEach(function(f,i){ tone({freq:f,dur:0.24,type:'triangle',peak:0.20,when:i*0.085,send:0.28}); noise({dur:0.05,peak:0.04,hp:6000,when:i*0.085,send:0.10}); }); }
+  function playPB(){ if(playSample('pb')) return; var seq=[523.25,659.25,783.99,1046.5,1318.5]; seq.forEach(function(f,i){ tone({freq:f,dur:0.32,type:'triangle',peak:0.20,when:i*0.10,send:0.30}); tone({freq:f*2,dur:0.22,type:'sine',peak:0.06,when:i*0.10}); }); noise({dur:0.09,peak:0.06,hp:7000,when:0.55,send:0.15}); }
+  function playTick(p){ if(playSample('tick')) return; tone({freq:720+p*620, dur:0.045, type:'square', peak:0.07+p*0.05, dist:0.4}); noise({dur:0.02, peak:0.04, hp:6000}); }
+  function startDrone(){
+    if(droneOsc.length||!actx) return;
+    droneGain=actx.createGain(); droneGain.gain.value=0.0001; droneGain.connect(master);
+    var base=actx.createGain(); base.gain.value=0.5; base.connect(droneGain);
+    droneLFO=actx.createOscillator(); droneLFO.frequency.value=5; var lfoG=actx.createGain(); lfoG.gain.value=0.45; droneLFO.connect(lfoG); lfoG.connect(base.gain); droneLFO.start();
+    [58,58.8].forEach(function(fr){ var o=actx.createOscillator(); o.type='sine'; o.frequency.value=fr; o.connect(base); o.start(); droneOsc.push(o); });
+  }
+  function setDrone(p){ if(droneGain) droneGain.gain.setTargetAtTime(0.0001+p*0.09, actx.currentTime, 0.3); }
+  function stopDrone(){ droneOsc.forEach(function(o){ try{o.stop();}catch(e){} }); droneOsc=[]; if(droneLFO){ try{droneLFO.stop();}catch(e){} droneLFO=null; } droneGain=null; }
+
+  // ---------- Particles ----------
+  var cvs=document.getElementById('fx'), pctx=cvs.getContext('2d'), parts=[];
+  function sizeCanvas(){ var r=cvs.getBoundingClientRect(); cvs.width=r.width; cvs.height=r.height; }
+  function burst(x,y,color){ for(var i=0;i<24;i++){ var a=Math.random()*Math.PI*2, sp=2+Math.random()*5; parts.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:1,color:color}); } }
+  function pLoop(){
+    pctx.clearRect(0,0,cvs.width,cvs.height);
+    for(var i=parts.length-1;i>=0;i--){ var p=parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.18; p.life-=0.03; if(p.life<=0){ parts.splice(i,1); continue; } pctx.globalAlpha=Math.max(0,p.life); pctx.fillStyle=p.color; pctx.beginPath(); pctx.arc(p.x,p.y,3*p.life+1,0,Math.PI*2); pctx.fill(); }
+    pctx.globalAlpha=1; updateRing(); requestAnimationFrame(pLoop);
+  }
+  // Per-question decision window indicator: a ring around the word that depletes as time runs out.
+  // Only in endless mode with a finite window (grace or not). Hidden during advance gaps / non-endless.
+  function updateRing(){
+    if(S.mode==='endless' && isFinite(S.qWindow) && S.running && !S.advancing && S.current){
+      var p=(performance.now()-S.qStart)/(S.qWindow*1000); p=Math.max(0,Math.min(1,p));
+      qring.style.display='block';
+      qring.style.setProperty('--p',(p*100).toFixed(1));
+      qring.style.setProperty('--ring-c', p>0.7?'var(--bad)':(p>0.4?'#ffd166':'var(--good)'));
+    } else { qring.style.display='none'; }
+  }
+  requestAnimationFrame(pLoop);
+
+  // ---------- DOM ----------
+  var $=function(id){ return document.getElementById(id); };
+  var app=$('app'), wordEl=$('word'), modeTag=$('modeTag'), btnWrap=$('btnWrap'),
+      comboPop=$('comboPop'), banner=$('banner'), flash=$('flash'), vignette=$('vignette'),
+      hudLevel=$('hudLevel'), hudScore=$('hudScore'), hudCombo=$('hudCombo'), livesEl=$('lives'),
+      timerFill=$('timerFill'), timerbar=$('timerbar'), qring=$('qring'), stage=$('stage');
+  function show(id){ var s=document.querySelectorAll('.screen'); for(var i=0;i<s.length;i++) s[i].classList.remove('active'); $(id).classList.add('active'); }
+
+  // ---------- State ----------
+  var S={ mode:'endless', level:1, lives:START_LIVES, score:0, combo:0, maxCombo:0, correct:0, total:0,
+         rtCong:[], rtIncong:[], current:null, running:false, timeLeft:LEVEL_TIME, qStart:0, qWindow:Infinity,
+         timeMax:LEVEL_TIME, timedLimit:30,
+         runElapsed:0, daily:false, seed:0, advancing:false, lastSec:99, curCfg:null, lifeEls:[] };
+  var timerInt=null, advanceT=null, qTimer=null, flashTimer=null;
+  var buttons=[];
+
+  function shuffle(a){ for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+  function avg(a){ return a.length? Math.round(a.reduce(function(x,y){return x+y;},0)/a.length):null; }
+  function comboMult(c){ if(c>=20) return 3; if(c>=10) return 2; if(c>=5) return 1.5; return 1; }
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  function rngFor(){ if(S.daily) return mulberry32(S.seed + S.total*2654435761); return Math.random; }
+
+  function curCfg(){
+    var cfg = S.mode==='endless' ? endlessConfig(S.level)
+            : S.mode==='timed' ? timedConfig()
+            : levelConfig(S.level);
+    cfg.colors = paletteFor(cfg.count); return cfg;
+  }
+  // Word meaning is ALWAYS different from ink color — the Stroop conflict is forced on every trial.
+  function makeQuestion(cfg, rng){
+    var word = cfg.colors[Math.floor(rng()*cfg.colors.length)];
+    var ink = word;
+    do { ink = cfg.colors[Math.floor(rng()*cfg.colors.length)]; } while(ink===word);
+    var mode='classic';
+    if(cfg.rotate) mode = rng()<0.5?'classic':'reverse';
+    else if(cfg.modes.length>1) mode = rng()<0.5?cfg.modes[0]:cfg.modes[1];
+    return {word:word, ink:ink, mode:mode, answer:(mode==='classic'?ink:word), congruent:false};
+  }
+
+  function startEndless(){ startRun('endless', 1); }
+  function startPractice(n){ startRun('practice', n); }
+  function startDaily(){ S.daily=true; var d=new Date(); S.seed=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate(); startRun('daily', 1); }
+  function startRun(mode, n){
+    initAudio();
+    S.mode=mode; S.daily=(mode==='daily'); S.level=n; S.lives=START_LIVES;
+    S.score=0; S.combo=0; S.maxCombo=0; S.correct=0; S.total=0;
+    S.rtCong=[]; S.rtIncong=[]; S.running=true; S.advancing=false;
+    S.lastSec=99; S.runElapsed=0;
+    S.timeMax = (mode==='timed') ? S.timedLimit : LEVEL_TIME;
+    S.timeLeft = S.timeMax;
+    hudLevel.textContent = S.daily? '每日' : (S.mode==='timed'? S.timedLimit+'秒' : n);
+    show('screen-game'); sizeCanvas(); buildLives(); updateHUD();
+    timerFill.style.width='100%'; timerbar.classList.remove('warn'); app.classList.remove('danger'); vignette.style.opacity=0;
+    clearInterval(timerInt); timerInt=setInterval(tick,100);
+    nextQuestion();
+  }
+  function startTimed(sec){ S.timedLimit=sec; startRun('timed', 1); }
+
+  function tick(){
+    if(!S.running) return;
+    S.timeLeft-=0.1; if(S.timeLeft<0) S.timeLeft=0;
+    timerFill.style.width=(S.timeLeft/S.timeMax*100)+'%';
+    if(S.timeLeft<=10){
+      timerbar.classList.add('warn'); app.classList.add('danger');
+      var p=1-S.timeLeft/10; vignette.style.opacity=(0.15+p*0.55).toFixed(2);
+      startDrone(); setDrone(p);
+      var sec=Math.ceil(S.timeLeft); if(sec!==S.lastSec){ S.lastSec=sec; playTick(p); }
+    }
+    if(S.timeLeft<=0) levelExpired();
+  }
+
+  function levelExpired(){
+    if(S.mode==='endless'){
+      S.runElapsed += LEVEL_TIME;
+      S.level++; hudLevel.textContent=S.level;
+      showBanner('第 '+S.level+' 关');
+      playLevel();
+      S.timeLeft=LEVEL_TIME; timerFill.style.width='100%'; timerbar.classList.remove('warn');
+      app.classList.remove('danger'); vignette.style.opacity=0; stopDrone(); S.lastSec=99;
+      clearTimeout(advanceT); S.advancing=false; nextQuestion();
+    } else {
+      endLevel();
+    }
+  }
+
+  function nextQuestion(){
+    clearTimeout(qTimer); clearTimeout(flashTimer);
+    if(!S.running) return; S.advancing=false;
+    wordEl.style.visibility='visible';
+    var cfg=curCfg(); S.curCfg=cfg;
+    var q=makeQuestion(cfg, rngFor()); S.current=q;
+    wordEl.textContent=q.word.n; wordEl.style.color=q.ink.h;
+    modeTag.textContent = q.mode==='classic'?'按墨色':'按字义';
+    modeTag.className='mode-tag '+(q.mode==='classic'?'':'reverse');
+    wordEl.classList.remove('pop'); void wordEl.offsetWidth; wordEl.classList.add('pop');
+    btnWrap.innerHTML=''; buttons=[];
+    var shuffled=shuffle(cfg.colors.slice());
+    // randomize grid shape per question so option positions are never fixed (shuffle already randomizes color order)
+    var cols = cfg.count<=4 ? (Math.random()<0.5?4:2) : (cfg.count<=8?4:(Math.random()<0.5?4:3));
+    btnWrap.style.gridTemplateColumns='repeat('+cols+',1fr)';
+    shuffled.forEach(function(c,i){
+      var b=document.createElement('button'); b.className='color-btn'; b.style.background=c.h;
+      if(i<9){ var k=document.createElement('span'); k.className='key'; k.textContent=(i+1); b.appendChild(k); }
+      b.addEventListener('click', function(){ answer(c,b); });
+      btnWrap.appendChild(b); buttons.push({el:b, color:c});
+    });
+    S.qStart=performance.now();
+    S.qWindow = isFinite(cfg.window) ? cfg.window : Infinity;
+    // position the per-question decision ring centered on the word
+    var wr=wordEl.getBoundingClientRect(), sr=stage.getBoundingClientRect();
+    qring.style.left=(wr.left+wr.width/2 - sr.left)+'px';
+    qring.style.top=(wr.top+wr.height/2 - sr.top)+'px';
+    if(S.mode==='endless' && isFinite(cfg.window)) qTimer=setTimeout(autoMiss, cfg.window*1000);
+    if(cfg.flash) flashTimer=setTimeout(function(){ if(S.current===q) wordEl.style.visibility='hidden'; }, cfg.window*0.6*1000);
+  }
+
+  function autoMiss(){
+    if(!S.running||S.advancing||!S.current) return;
+    S.advancing=true; S.total++;
+    var cont = S.curCfg.grace ? registerWrong(false) : registerWrong(true);
+    updateHUD();
+    if(cont) advanceT=setTimeout(nextQuestion,230);
+  }
+
+  function answer(c, btn){
+    if(!S.running||S.advancing||!S.current) return;
+    S.advancing=true; clearTimeout(qTimer); clearTimeout(flashTimer); wordEl.style.visibility='visible';
+    var q=S.current, rt=Math.round(performance.now()-S.qStart); S.total++;
+    if(c.n===q.answer.n){
+      S.correct++; S.combo++; S.maxCombo=Math.max(S.maxCombo,S.combo);
+      var mult=comboMult(S.combo), speed=Math.max(1, Math.min(2, 2 - rt/Q_SPEED_REF)); // [PLACEHOLDER]
+      S.score+=Math.round(10*mult*speed);
+      if(q.mode==='classic'){ (q.congruent?S.rtCong:S.rtIncong).push(rt); }
+      playCorrect(S.combo);
+      var r=btn.getBoundingClientRect(), cr=cvs.getBoundingClientRect();
+      burst(r.left+r.width/2-cr.left, r.top+r.height/2-cr.top, q.answer.h);
+      wordEl.classList.remove('good'); void wordEl.offsetWidth; wordEl.classList.add('good');
+      setComboGlow(S.combo); showCombo(S.combo);
+      updateHUD(); advanceT=setTimeout(nextQuestion,230);
+    } else {
+      var cont = S.curCfg.grace ? registerWrong(false) : registerWrong(true); updateHUD();
+      if(cont) advanceT=setTimeout(nextQuestion,230);
+    }
+  }
+
+  // loseLife=true => deduct a life (only in endless non-grace). false => just break combo (grace phase).
+  function registerWrong(loseLife){
+    S.combo=0; setComboGlow(0); playWrong();
+    flash.classList.remove('bad'); void flash.offsetWidth; flash.classList.add('bad');
+    app.classList.remove('shake'); void app.offsetWidth; app.classList.add('shake');
+    if(navigator.vibrate) navigator.vibrate(50);
+    if(loseLife && S.mode==='endless'){
+      S.lives--; setLives(S.lives); loseLifeFx(S.lives);
+      if(S.lives<=0){ clearTimeout(advanceT); endRun(); return false; }
+    }
+    return true;
+  }
+
+  function setComboGlow(c){ var v=c>=20?'91,209,255':c>=10?'120,220,180':c>=5?'255,210,120':'0,0,0'; document.documentElement.style.setProperty('--combo-glow', v); }
+  function showCombo(c){ if(c<2) return; comboPop.textContent='连击 x'+c+(comboMult(c)>1?'  ('+comboMult(c)+'x)':''); comboPop.classList.remove('show'); void comboPop.offsetWidth; comboPop.classList.add('show'); }
+  function showBanner(txt){ banner.textContent=txt; banner.classList.remove('show'); void banner.offsetWidth; banner.classList.add('show'); }
+  function updateHUD(){
+    hudScore.textContent=S.score; hudCombo.textContent='连击 '+S.combo;
+    hudLevel.textContent = S.daily? '每日' : (S.mode==='timed'? S.timedLimit+'秒' : S.level);
+    if(S.mode==='endless'){ livesEl.style.display='flex'; setLives(S.lives); }
+    else livesEl.style.display='none';
+  }
+
+  function buildLives(){ livesEl.innerHTML=''; S.lifeEls=[]; var label=document.createElement('span'); label.className='life-label'; label.textContent='生命'; livesEl.appendChild(label); for(var i=0;i<START_LIVES;i++){ var p=document.createElement('span'); p.className='life'; livesEl.appendChild(p); S.lifeEls.push(p); } }
+  function setLives(n){ for(var i=0;i<S.lifeEls.length;i++){ S.lifeEls[i].classList.toggle('lost', i>=n); } }
+  function loseLifeFx(idx){ if(S.lifeEls[idx]){ var el=S.lifeEls[idx]; el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit'); } }
+  function stopAll(){ clearInterval(timerInt); clearTimeout(advanceT); clearTimeout(qTimer); clearTimeout(flashTimer); stopDrone(); app.classList.remove('danger'); vignette.style.opacity=0; }
+
+  // ---------- End states ----------
+  function endRun(){
+    if(!S.running) return; S.running=false; stopAll(); S.current=null; setComboGlow(0);
+    var acc=S.total?Math.round(S.correct/S.total*100):0;
+    var rec={level:S.level, time:Math.round(S.runElapsed), score:S.score, combo:S.maxCombo};
+    var newLevel = rec.level>END.level;
+    if(newLevel){ END.level=rec.level; END.time=rec.time; }
+    if(rec.score>END.score) END.score=rec.score;
+    if(rec.combo>END.combo) END.combo=rec.combo;
+    ls('stroop_endless',END);
+    bumpStreak();
+    renderResult('游戏结束', newLevel,
+      [['到达关卡', rec.level+(newLevel?'  (新纪录)':'')],
+       ['本局得分', rec.score],
+       ['本局用时', rec.time+' 秒'],
+       ['最高连击', rec.combo],
+       ['准确率', acc+'%']],
+      '我在《墨色挑战》无限模式冲到了第'+rec.level+'关，得分'+rec.score+'，用时'+rec.time+'秒。来挑战！',
+      'replay');
+  }
+  function endLevel(){
+    if(!S.running) return; S.running=false; stopAll(); S.current=null; setComboGlow(0);
+    var acc=S.total?Math.round(S.correct/S.total*100):0;
+    // Timed score-attack: record best score + correct count per duration; no lives, no level.
+    if(S.mode==='timed'){
+      var lim=S.timedLimit, prev=TIMED[lim]||{score:0,count:0}, isNew=S.score>prev.score;
+      if(isNew){ TIMED[lim]={score:S.score,count:S.correct}; ls('stroop_timed',TIMED); }
+      if(isNew) playPB(); else playLevel();
+      bumpStreak();
+      renderResult('限时挑战 '+lim+'秒', isNew,
+        [['得分', S.score+(isNew?'  (新纪录)':'')],
+         ['上一纪录', prev.score],
+         ['答对题数', S.correct],
+         ['准确率', acc+'%'],
+         ['最高连击', S.maxCombo]],
+        '我在《墨色挑战》限时'+lim+'秒挑战拿了'+S.score+'分，答对'+S.correct+'题，连击峰值'+S.maxCombo+'。来挑战！',
+        'back');
+      return;
+    }
+    var key = S.daily? ('daily_'+S.seed) : ('lv'+S.level);
+    var prev=PB[key]||0, isNew=S.score>prev;
+    if(isNew){ PB[key]=S.score; ls('stroop_pb',PB); }
+    if(!S.daily && isNew && S.level>=UNLOCKED && S.level<TOTAL_PRACTICE){ UNLOCKED=S.level+1; ls('stroop_unlocked',UNLOCKED); }
+    if(S.daily){} else if(isNew){ playPB(); } else { playLevel(); }
+    bumpStreak();
+    renderResult((S.daily?'每日挑战结算':'第 '+S.level+' 关结算'), isNew,
+      [['得分', S.score+(isNew?'  (新纪录)':'')],
+       ['上一纪录', prev],
+       ['准确率', acc+'%'],
+       ['最高连击', S.maxCombo],
+       ['平均反应', (function(){var a=avg(S.rtCong.concat(S.rtIncong)); return a!==null?a+' ms':'—';})()]],
+      '我在《墨色挑战》'+(S.daily?'每日挑战':('第'+S.level+'关'))+'拿了'+S.score+'分，连击峰值'+S.maxCombo+'。来挑战！',
+      S.daily?'back':'next');
+  }
+  function renderResult(title, isNew, rows, share, nextAct){
+    $('resTitle').textContent=title;
+    $('newRec').style.display=isNew?'block':'none';
+    var box=$('resStats'); box.innerHTML='';
+    rows.forEach(function(r){ var d=document.createElement('div'); d.className='stat'; d.innerHTML='<span>'+r[0]+'</span><b>'+r[1]+'</b>'; box.appendChild(d); });
+    $('shareText').textContent=share;
+    var nb=$('nextBtn');
+    if(nextAct==='replay'){ nb.style.display='block'; nb.textContent='再来一局'; nb.setAttribute('data-act','endless'); }
+    else if(nextAct==='next'){ nb.style.display='block'; nb.textContent='下一关'; nb.setAttribute('data-act','next'); }
+    else { nb.style.display='none'; }
+    show('screen-result');
+  }
+
+  function bumpStreak(){
+    var d=new Date(), today=d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
+    if(STREAK.date!==today){ STREAK.n = (STREAK.date===today-1)? STREAK.n+1 : 1; STREAK.date=today; ls('stroop_streak',STREAK); }
+  }
+
+  // ---------- Screens ----------
+  function buildPractice(){
+    var g=$('lvlGrid'); g.innerHTML='';
+    for(var i=1;i<=TOTAL_PRACTICE;i++){
+      var locked=i>UNLOCKED, d=document.createElement('div');
+      d.className='lvl'+(locked?' locked':'');
+      d.innerHTML='<div class="num">'+i+'</div><div class="pb">'+(PB['lv'+i]?('最佳 '+PB['lv'+i]):'—')+'</div>';
+      if(!locked) d.addEventListener('click',(function(n){ return function(){ startPractice(n); }; })(i));
+      g.appendChild(d);
+    }
+  }
+  function buildRecords(){
+    var box=$('recList'); box.innerHTML='';
+    var d=new Date(), todayKey='daily_'+(d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate());
+    function row(l,v){ var e=document.createElement('div'); e.className='stat'; e.innerHTML='<span>'+l+'</span><b>'+v+'</b>'; box.appendChild(e); }
+    row('无限最高关卡', END.level+(END.level?(' (用时 '+END.time+' 秒)'):''));
+    row('无限最高分', END.score);
+    row('无限最高连击', END.combo);
+    row('限时30秒最佳', TIMED[30].score+(TIMED[30].count?(' ('+TIMED[30].count+'题)'):''));
+    row('限时60秒最佳', TIMED[60].score+(TIMED[60].count?(' ('+TIMED[60].count+'题)'):''));
+    row('每日挑战最佳', PB[todayKey]||0);
+    row('连续登录', STREAK.n+' 天');
+  }
+
+  // ---------- Wiring ----------
+  document.addEventListener('click', function(e){
+    var t=e.target.closest('[data-act]'); if(!t) return;
+    var act=t.getAttribute('data-act');
+    if(act==='endless') startEndless();
+    else if(act==='practice'){ buildPractice(); show('screen-levels'); }
+    else if(act==='daily') startDaily();
+    else if(act==='timed30') startTimed(30);
+    else if(act==='timed60') startTimed(60);
+    else if(act==='records'){ buildRecords(); show('screen-records'); }
+    else if(act==='back'){ show('screen-start'); }
+    else if(act==='next'){ initAudio(); startPractice(S.level+1); }
+    else if(act==='settings'){ toggleSettings(); }
+    else if(act==='copy'){ var txt=$('shareText').textContent; if(navigator.clipboard) navigator.clipboard.writeText(txt); alert('战绩已复制'); }
+  });
+  function toggleSettings(){
+    SOUND=!SOUND; ls('stroop_sound',SOUND);
+    var themes=['default','neon','sunset']; THEME=themes[(themes.indexOf(THEME)+1)%themes.length]; ls('stroop_theme',THEME); applyTheme();
+    alert('音效：'+(SOUND?'开':'关')+'　主题：'+THEME);
+  }
+  function applyTheme(){ var m={default:'91,209,255', neon:'255,90,200', sunset:'255,160,80'}; document.documentElement.style.setProperty('--accent','rgb('+m[THEME]+')'); }
+
+  window.addEventListener('keydown', function(e){
+    if(!$('screen-game').classList.contains('active')) return;
+    var k=parseInt(e.key,10); if(isNaN(k)||k<1||k>9) return;
+    if(buttons[k-1]) answer(buttons[k-1].color, buttons[k-1].el);
+  });
+  window.addEventListener('resize', function(){ if($('screen-game').classList.contains('active')) sizeCanvas(); });
+
+  applyTheme();
+})();
+</script>
+</body>
+</html>
