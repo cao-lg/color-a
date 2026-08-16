@@ -203,7 +203,9 @@
         <button data-style="chill">舒缓</button>
         <button data-style="arcade">活泼</button>
         <button data-style="pulse">律动</button>
+        <button data-style="focus">专注</button>
       </div>
+      <small style="color:var(--muted); font-size:12px; line-height:1.5;">「专注」含双耳 α 节拍与棕噪掩蔽，助益专注但科学证据有限，戴耳机效果更佳。</small>
     </div>
     <div class="set-row col"><span class="set-vol">音乐音量 <b id="bgmVolVal">50%</b></span>
       <input type="range" id="bgmVol" min="0" max="100" value="50">
@@ -288,8 +290,8 @@
   var actx=null, noiseBuf=null, master=null, comp=null, reverb=null, revGain=null;
   var droneOsc=[], droneGain=null, droneLFO=null;
   var SFX_BUF = { correct:null, wrong:null, level:null, pb:null, tick:null };
-  var BGM_FILES = { chill:'bgm/chill.wav', arcade:'bgm/arcade.wav', pulse:'bgm/pulse.wav' };
-  var bgmBuf={chill:null, arcade:null, pulse:null}, bgmGain=null, bgmSrc=null, bgmLoaded=false, pendingBgm=null;
+  var BGM_FILES = { chill:'bgm/chill.wav', arcade:'bgm/arcade.wav', pulse:'bgm/pulse.wav', focus:'bgm/focus.wav' };
+  var bgmBuf={chill:null, arcade:null, pulse:null, focus:null}, bgmGain=null, bgmSrc=null, bgmLoaded=false, pendingBgm=null;
   var samplesLoaded=false;
   function initAudio(){
     if(actx){ if(actx.state==='suspended') actx.resume(); return; }
