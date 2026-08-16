@@ -54,15 +54,23 @@ def save(name, sig):
     sf.write('sfx/%s.wav' % name, sig, SR)
     print('%-8s len=%.2fs  peak=%.3f  rms=%.4f' % (name, len(sig) / SR, np.max(np.abs(sig)), np.sqrt(np.mean(sig ** 2))))
 
-# ---------- correct: bright pluck + sub thump + sparkle ----------
-body = pluck(660, 0.24, decay=0.15, harm_ratios=(1, 2, 3), harm_amps=(1, 0.45, 0.22))
-thump = pluck(120, 0.07, decay=0.035, harm_ratios=(1,), harm_amps=(1,)) * 0.55
-spark = noise_burst(0.012, hp=5000, amp=0.5, decay=0.004)
-n = len(body)
-thump = np.pad(thump, (0, n - len(thump)))
-spark = np.pad(spark, (0, n - len(spark)))
-correct = softclip((body + thump + spark) * 1.25)
-correct = reverb(correct, make_ir(0.22, 3.0), 0.22)
+# ---------- correct: pleasant major-chord "ding" (marimba/bell), soft attack, warm, musical ----------
+root = 523.25  # C5
+chord = [(root, 1.0), (root * 1.25, 0.70), (root * 1.5, 0.55), (root * 2.0, 0.22)]  # C5 E5 G5 C6
+n = int(0.42 * SR)
+t = np.arange(n) / SR
+body = np.zeros(n)
+for f, a in chord:
+    sig = np.sin(2 * np.pi * f * t)
+    sig += 0.12 * np.sin(2 * np.pi * f * 2.76 * t)  # bell inharmonic shimmer (glockenspiel-like)
+    body += a * sig * np.exp(-t / 0.30)
+atk = int(0.006 * SR)
+body[:atk] = body[:atk] * np.linspace(0, 1, atk)
+warm = pluck(130, 0.12, decay=0.08, harm_ratios=(1,), harm_amps=(1,)) * 0.16  # soft low warmth, no boom
+warm = np.pad(warm, (0, n - len(warm)))
+shim = np.sin(2 * np.pi * 2600 * t + np.pi / 3) * np.exp(-t / 0.05) * 0.05  # gentle high shimmer
+correct = softclip((body + warm + shim) * 1.12)
+correct = reverb(correct, make_ir(0.35, 3.2), 0.30)
 
 # ---------- wrong: detuned descending tones + low noise thud ----------
 n = int(0.36 * SR)
